@@ -138,10 +138,10 @@ def parse(files):
                 continue
             t = m['type']
             if m['fulltext'] in the_dict:
-                counts['duplicate'] = counts['duplicate'] + 1
-                m['count'] = m['count'] + 1
+                counts['duplicate'] += 1
+                m['count'] += 1
             the_dict[m['fulltext']] = m
-            counts[t] = counts[t] + 1
+            counts[t] += 1
 
     return (the_dict.values(), counts)
 
@@ -165,10 +165,10 @@ def parse_diff(before_files, after_files):
                 continue
             t = m['type']
             if m['fulltext'] in before_dict:
-                counts['duplicate'] = counts['duplicate'] + 1
-                m['count'] = m['count'] + 1
+                counts['duplicate'] += 1
+                m['count'] += 1
             before_dict[m['fulltext']] = m
-            counts[t]['before'] = counts[t]['before'] + 1
+            counts[t]['before'] += 1
 
     add_list = []
     after_dict = {}
@@ -180,19 +180,19 @@ def parse_diff(before_files, after_files):
                 continue
             t = m['type']
             if m['fulltext'] in after_dict:
-                counts['duplicate'] = counts['duplicate'] + 1
-                m['count'] = m['count'] + 1
+                counts['duplicate'] += 1
+                m['count'] += 1
             after_dict[m['fulltext']] = m
             if m['fulltext'] in before_dict.keys():
                 before_dict.pop(m['fulltext'])
             else:
                 add_list.append(m)
-                counts[t]['add'] = counts[t]['add'] + 1
-            counts[t]['after'] = counts[t]['after'] + 1
+                counts[t]['add'] += 1
+            counts[t]['after'] += 1
 
     for m in before_dict.values():
         t = m['type']
-        counts[t]['remove'] = counts[t]['remove'] + 1
+        counts[t]['remove'] += 1
     return (add_list, before_dict.values(), counts)
 
 
