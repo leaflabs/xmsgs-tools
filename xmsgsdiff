@@ -6,18 +6,7 @@
     Author: bnewbold@leaflabs.com
     Date: Feb 2014
 
-NOTES:
 
-* 'fulltext' is not a unique identifier; many warning texts are repeated
-
-TODO:
-
-* handle "info" as well as "warning"
-* ignore by type/number
-* collapse redundant warnings (every bit on on the same port)
-* parse 'new' flag?
-* summarize
-* ignore by file/path
 """
 
 from __future__ import print_function
@@ -28,10 +17,18 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import sys
+import glob
 
 pp = pprint.PrettyPrinter()
 
 DISABLE_COLOR = False
+
+SEVERE_WARNINGS = [
+    413,    # "N-bit expression truncated into M-bit target"
+    ]
+
+IGNORE_LIST = []
+USE_TYPES = ['error', 'warning', 'severe', 'info']
 
 
 def colorize(what, how, bold=False):
@@ -41,6 +38,7 @@ def colorize(what, how, bold=False):
     if DISABLE_COLOR:
         return what
 
+    BLACK = '\033[30m'
     RED = '\033[31m'
     GREEN = '\033[32m'
     YELLOW = '\033[33m'
@@ -52,6 +50,7 @@ def colorize(what, how, bold=False):
     BGYELLOW = '\033[43m'
     BGBLUE = '\033[44m'
     BGWHITE = '\033[47m'
+    DIM = '\033[2m'
     ENDC = '\033[0m'
 
     if bold:
@@ -66,19 +65,19 @@ def colorize(what, how, bold=False):
     elif how in ['yellow', 'warning']:
         return YELLOW + BOLD + what + ENDC
     elif how in ['grey', 'gray', 'info']:
-        return DIM + BOLD + what + ENDC
+        return CYAN + BOLD + what + ENDC
     elif how in ['bright']:
         return BRIGHT + BOLD + what + ENDC
     elif how in ['bgred']:
-        return BGRED + BOLD + what + ENDC
+        return BGRED + BLACK + BOLD + what + ENDC
     elif how in ['bggreen']:
-        return BGGREEN + BOLD + what + ENDC
+        return BGGREEN + BLACK + BOLD + what + ENDC
     elif how in ['bgwhite']:
         return BGWHITE + BOLD + what + ENDC
     elif how in ['bgblue']:
         return BGBLUE + BOLD + what + ENDC
     else:
-        return what
+        return BOLD + what + ENDC
 
 
 def strlim(s, l):
@@ -97,16 +96,22 @@ def msg2dict(msg):
     fullpath = None
     linenum = None
     text = raw
-    r = re.compile('\"(\S+)\" Line (\d+): (.+)')
+    r = re.compile('\"(\S+)\" [Ll]ine (\d+): (.+)')
     m = r.match(raw)
     if m is not None:
         fullpath = m.group(1)
+        path = os.path.relpath(fullpath)
         linenum = int(m.group(2))
         text = m.group(3)
-
-    return {'type': msg.attrib['type'],
+    num = int(msg.attrib['num'])
+    type = msg.attrib['type']
+    if num in SEVERE_WARNINGS:
+        type = 'severe'
+    if num in IGNORE_LIST or not type in USE_TYPES:
+        return None
+    return {'type': type,
             'source': msg.attrib['file'],
-            'num': int(msg.attrib['num']),
+            'num': num,
             'delta': msg.attrib['delta'],
             'fulltext': raw,
             'text': text,
@@ -115,56 +120,123 @@ def msg2dict(msg):
             'linenum': linenum}
 
 
-def run(before, after):
-    counts = {'add': 0,
-              'remove': 0,
-              'duplicate': 0,
-              'after': 0}
+def parse(before_files, after_files):
+    tmpl = {'add': 0,
+            'remove': 0,
+            'before': 0,
+            'after': 0}
+    counts = {'duplicate': 0,
+              'error': tmpl.copy(),
+              'warning': tmpl.copy(),
+              'severe': tmpl.copy(),
+              'info': tmpl.copy()}
     before_dict = {}
-    before_tree = ET.parse(before)
-    for msg in before_tree.iter('msg'):
-        m = msg2dict(msg)
-        if m['fulltext'] in before_dict:
-            counts['duplicate'] = counts['duplicate'] + 1
-            m['count'] = m['count'] + 1
-        before_dict[m['fulltext']] = m
-    counts['before'] = len(before_dict.keys())
+    for before in before_files:
+        before_tree = ET.parse(before)
+        for msg in before_tree.iter('msg'):
+            m = msg2dict(msg)
+            if not m:
+                continue
+            t = m['type']
+            if m['fulltext'] in before_dict:
+                counts['duplicate'] = counts['duplicate'] + 1
+                m['count'] = m['count'] + 1
+            before_dict[m['fulltext']] = m
+            counts[t]['before'] = counts[t]['before'] + 1
 
+    add_list = []
     after_dict = {}
-    after_tree = ET.parse(after)
-    for msg in after_tree.iter('msg'):
-        m = msg2dict(msg)
-        if m['fulltext'] in after_dict:
-            counts['duplicate'] = counts['duplicate'] + 1
-            m['count'] = m['count'] + 1
-        after_dict[m['fulltext']] = m
-        if m['fulltext'] in before_dict.keys():
-            before_dict.pop(m['fulltext'])
-        else:
-            print(colorize("+", 'bggreen') + strlim(m['source'] + ":" + m['text'], 75))
-            counts['add'] = counts['add'] + 1
-    counts['after'] = len(after_dict.keys())
-    counts['remove'] = len(before_dict.keys())
+    for after in after_files:
+        after_tree = ET.parse(after)
+        for msg in after_tree.iter('msg'):
+            m = msg2dict(msg)
+            if not m:
+                continue
+            t = m['type']
+            if m['fulltext'] in after_dict:
+                counts['duplicate'] = counts['duplicate'] + 1
+                m['count'] = m['count'] + 1
+            after_dict[m['fulltext']] = m
+            if m['fulltext'] in before_dict.keys():
+                before_dict.pop(m['fulltext'])
+            else:
+                add_list.append(m)
+                counts[t]['add'] = counts[t]['add'] + 1
+            counts[t]['after'] = counts[t]['after'] + 1
 
     for m in before_dict.values():
-        print(colorize("-", 'bgred') + strlim(m['source'] + ":" + m['text'], 75))
-        pass
+        t = m['type']
+        counts[t]['remove'] = counts[t]['remove'] + 1
+    return (add_list, before_dict.values(), counts)
 
-    pp.pprint(counts)
+
+def print_msgs(msgs, difftype, full=False):
+    if difftype is 'add':
+        lineprefix = colorize("+", 'bggreen')
+    elif difftype is 'remove':
+        lineprefix = colorize("-", 'bgred')
+    else:
+        lineprefix = "?"
+
+    for m in msgs:
+        prefix = m['source'] + ":" + str(m['num']) + ": "
+        if full:
+            body = m['text']
+        else:
+            body = strlim(m['text'], 77 - len(prefix))
+        print(lineprefix +
+              colorize(prefix, m['type'], bold=True) +
+              colorize(body, m['type']))
+
+
+def print_counts(counts):
+    print(("=== Summary " + "=" * 79)[:79])
+    def helper(name, c):
+        print("%020s %s (%s, %s)" % (
+            name + ':',
+            colorize(str(c['after']), '', bold=True),
+            colorize("+" + str(c['add']), 'green', bold=True), 
+            colorize("-" + str(c['remove']), 'red', bold=True)))
+
+    if 'error' in USE_TYPES:
+        helper('Errors', counts['error'])
+    if 'severe' in USE_TYPES:
+        helper('Severe Warnings', counts['severe'])
+    if 'warning' in USE_TYPES:
+        helper('Warnings', counts['warning'])
+    if 'info' in USE_TYPES:
+        helper('Infos', counts['info'])
 
 
 # ========== Script/Args =========== #
 def main():
     global DISABLE_COLOR
+    global IGNORE_LIST
+    global USE_TYPES
+
     parser = argparse.ArgumentParser(
-        description="BLAH!",
+        description="Shows the diff! Of the things!",
         usage="%(prog)s [options]")
     parser.add_argument('-v', '--verbose', action="count",
         help="more verbose (debugging) output")
+    parser.add_argument('-f', '--full', action="store_true",
+        help="display full output")
+    parser.add_argument('--show-path', action="store_true",
+        help="show file paths (when possible); implies --full")
+    parser.add_argument('before_file', type=str,
+        help="")
+    parser.add_argument('after_file', type=str,
+        help="")
+    """
     parser.add_argument('before_file', type=argparse.FileType(),
         help="")
     parser.add_argument('after_file', type=argparse.FileType(),
         help="")
+    """
+    parser.add_argument('-i', '--ignore', nargs="+", type=int,
+        help="list of warnings to ignore (integers)")
+    parser.add_argument('-t', '--types', nargs="+", type=str,
+        help="list of types to handle (error, warning, info, severe)")
 
     args = parser.parse_args()
 
@@ -176,7 +248,26 @@ def main():
     if not os.isatty(sys.stdout.fileno()):
         DISABLE_COLOR = True
 
-    run(args.before_file, args.after_file)
+    if args.ignore:
+        IGNORE_LIST.extend(args.ignore)
+
+    if args.types:
+        USE_TYPES = args.types
+
+    if os.path.isdir(args.before_file):
+        before_files = glob.glob(args.before_file + "/*xmsgs")
+    else:
+        before_files = [args.before_file, ]
+
+    if os.path.isdir(args.after_file):
+        after_files = glob.glob(args.after_file + "/*xmsgs")
+    else:
+        after_files = [args.after_file, ]
+
+    (add, remove, counts) = parse(before_files, after_files)
+    print_msgs(remove, 'remove', full=args.full)
+    print_msgs(add, 'add', full=args.full)
+    print_counts(counts)
 
 if __name__ == '__main__':
     main()
