@@ -29,6 +29,7 @@ SEVERE_WARNINGS = [
 
 IGNORE_LIST = []
 USE_TYPES = ['error', 'warning', 'severe', 'info']
+SKIP_PATHS = []
 
 
 def colorize(what, how, bold=False):
@@ -60,22 +61,22 @@ def colorize(what, how, bold=False):
 
     if how in ['red', 'error', 'fail']:
         return RED + BOLD + what + ENDC
-    elif how in ['green', 'ok', 'fail']:
+    elif how in ['green', 'ok', 'success']:
         return GREEN + BOLD + what + ENDC
+    elif how in ['magenta', 'severe']:
+        return MAGENTA + BOLD + what + ENDC
     elif how in ['yellow', 'warning']:
         return YELLOW + BOLD + what + ENDC
     elif how in ['grey', 'gray', 'info']:
         return CYAN + BOLD + what + ENDC
-    elif how in ['bright']:
-        return BRIGHT + BOLD + what + ENDC
     elif how in ['bgred']:
         return BGRED + BLACK + BOLD + what + ENDC
     elif how in ['bggreen']:
         return BGGREEN + BLACK + BOLD + what + ENDC
     elif how in ['bgwhite']:
-        return BGWHITE + BOLD + what + ENDC
+        return BGWHITE + BLACK + BOLD + what + ENDC
     elif how in ['bgblue']:
-        return BGBLUE + BOLD + what + ENDC
+        return BGBLUE + BLACK + BOLD + what + ENDC
     else:
         return BOLD + what + ENDC
 
@@ -94,6 +95,7 @@ def msg2dict(msg):
         raw += child.tail
     raw = raw.strip()
     fullpath = None
+    path = None
     linenum = None
     text = raw
     r = re.compile('\"(\S+)\" [Ll]ine (\d+): (.+)')
@@ -103,6 +105,9 @@ def msg2dict(msg):
         path = os.path.relpath(fullpath)
         linenum = int(m.group(2))
         text = m.group(3)
+        for pattern in SKIP_PATHS:
+            if glob.fnmatch.fnmatch(path, pattern):
+                return None
     num = int(msg.attrib['num'])
     type = msg.attrib['type']
     if num in SEVERE_WARNINGS:
@@ -116,6 +121,7 @@ def msg2dict(msg):
             'fulltext': raw,
             'text': text,
             'fullpath': fullpath,
+            'path': path,
             'count': 1,
             'linenum': linenum}
 
@@ -170,7 +176,8 @@ def parse(before_files, after_files):
     return (add_list, before_dict.values(), counts)
 
 
-def print_msgs(msgs, difftype, full=False):
+
+def print_msgs(msgs, difftype=None, full=False):
     if difftype is 'add':
         lineprefix = colorize("+", 'bggreen')
     elif difftype is 'remove':
@@ -187,6 +194,28 @@ def print_msgs(msgs, difftype, full=False):
         print(lineprefix +
               colorize(prefix, m['type'], bold=True) +
               colorize(body, m['type']))
+
+
+def print_by_file(add, remove, full=False):
+    fdict = {'<unknown>': {'add': [], 'remove': []}}
+    for m in add:
+        if not m['path']:
+            fdict['<unknown>']['add'].append(m)
+            continue
+        if not fdict.has_key(m['path']): 
+            fdict[m['path']] = {'add': [], 'remove': []}
+        fdict[m['path']]['add'].append(m)
+    for m in remove:
+        if not m['path']:
+            fdict['<unknown>']['add'].append(m)
+            continue
+        if not fdict.has_key(m['path']): 
+            fdict[m['path']] = {'add': [], 'remove': []}
+        fdict[m['path']]['remove'].append(m)
+    for key in sorted(fdict.keys()):
+        print(colorize("--- " + key, 'bgwhite'))
+        print_msgs(fdict[key]['add'], 'add', full=full)
+        print_msgs(fdict[key]['remove'], 'remove', full=full)
 
 
 def print_counts(counts):
@@ -221,18 +250,16 @@ def main():
         help="more verbose (debugging) output")
     parser.add_argument('-f', '--full', action="store_true",
         help="display full output")
+    parser.add_argument('-b', '--by-file', action="store_true",
+        help="Display outputs by filename")
+    parser.add_argument('-s', '--skip-paths', nargs="+",
+        help="Skip paths (can be globs)")
     parser.add_argument('--show-path', action="store_true",
         help="show file paths (when possible); implies --full")
     parser.add_argument('before_file', type=str,
         help="")
     parser.add_argument('after_file', type=str,
         help="")
-    """
-    parser.add_argument('before_file', type=argparse.FileType(),
-        help="")
-    parser.add_argument('after_file', type=argparse.FileType(),
-        help="")
-    """
     parser.add_argument('-i', '--ignore', nargs="+", type=int,
         help="list of warnings to ignore (integers)")
     parser.add_argument('-t', '--types', nargs="+", type=str,
@@ -254,6 +281,9 @@ def main():
     if args.types:
         USE_TYPES = args.types
 
+    if args.skip_paths:
+        SKIP_PATHS.extend(args.skip_paths)
+
     if os.path.isdir(args.before_file):
         before_files = glob.glob(args.before_file + "/*xmsgs")
     else:
@@ -265,8 +295,11 @@ def main():
         after_files = [args.after_file, ]
 
     (add, remove, counts) = parse(before_files, after_files)
-    print_msgs(remove, 'remove', full=args.full)
-    print_msgs(add, 'add', full=args.full)
+    if args.by_file:
+        print_by_file(add, remove, full=args.full)
+    else:
+        print_msgs(remove, 'remove', full=args.full)
+        print_msgs(add, 'add', full=args.full)
     print_counts(counts)
 
 if __name__ == '__main__':
