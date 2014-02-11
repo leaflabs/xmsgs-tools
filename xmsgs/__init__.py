@@ -11,11 +11,9 @@ files.
 """
 
 from __future__ import print_function
-import pprint
 import xml.etree.ElementTree as ET
 import re
 import os
-import sys
 import glob
 
 DISABLE_COLOR = False
@@ -64,7 +62,7 @@ def colorize(what, how, bold=False):
         return MAGENTA + BOLD + what + ENDC
     elif how in ['yellow', 'warning']:
         return YELLOW + BOLD + what + ENDC
-    elif how in ['grey', 'gray', 'info']:
+    elif how in ['info']:
         return CYAN + BOLD + what + ENDC
     elif how in ['bgred']:
         return BGRED + BLACK + BOLD + what + ENDC
@@ -97,6 +95,7 @@ def msg2dict(msg):
     text = raw
     r = re.compile('\"(\S+)\" [Ll]ine (\d+): (.+)')
     m = r.match(raw)
+
     if m is not None:
         fullpath = m.group(1)
         path = os.path.relpath(fullpath)
@@ -105,12 +104,16 @@ def msg2dict(msg):
         for pattern in SKIP_PATHS:
             if glob.fnmatch.fnmatch(path, pattern):
                 return None
+
     num = int(msg.attrib['num'])
     type = msg.attrib['type']
+
     if num in SEVERE_WARNINGS:
         type = 'severe'
+
     if num in IGNORE_LIST or not type in USE_TYPES:
         return None
+
     return {'type': type,
             'source': msg.attrib['file'],
             'num': num,
@@ -130,6 +133,7 @@ def parse(files):
               'severe': 0,
               'info': 0}
     the_dict = {}
+
     for f in files:
         tree = ET.parse(f)
         for msg in tree.iter('msg'):
@@ -156,6 +160,7 @@ def parse_diff(before_files, after_files):
               'warning': tmpl.copy(),
               'severe': tmpl.copy(),
               'info': tmpl.copy()}
+
     before_dict = {}
     for before in before_files:
         before_tree = ET.parse(before)
@@ -196,8 +201,8 @@ def parse_diff(before_files, after_files):
     return (add_list, before_dict.values(), counts)
 
 
-
-def print_msgs(msgs, difftype=None, full=False, everything=False, show_path=False):
+def print_msgs(msgs, difftype=None, full=False, everything=False,
+               show_path=False):
     if difftype is 'add':
         lineprefix = colorize("+", 'bggreen')
     elif difftype is 'remove':
@@ -222,27 +227,32 @@ def print_msgs(msgs, difftype=None, full=False, everything=False, show_path=Fals
               colorize(body, m['type']))
 
 
-def print_by_file(add, remove=None, full=False, everything=False, show_path=False):
+def print_by_file(add, remove=None, full=False, everything=False,
+                  show_path=False):
     """
     For non-diff output, set 'remove' to None and pass message list as 'add'.
     """
     fdict = {'<unknown>': {'add': [], 'remove': []}}
+
     for m in add:
         if not m['path']:
             fdict['<unknown>']['add'].append(m)
             continue
-        if not fdict.has_key(m['path']): 
+        if not m['path'] in fdict:
             fdict[m['path']] = {'add': [], 'remove': []}
         fdict[m['path']]['add'].append(m)
+
     if remove is not None:
         for m in remove:
             if not m['path']:
                 fdict['<unknown>']['add'].append(m)
                 continue
-            if not fdict.has_key(m['path']): 
+            if not m['path'] in fdict:
                 fdict[m['path']] = {'add': [], 'remove': []}
             fdict[m['path']]['remove'].append(m)
+
     printargs = dict(full=full, everything=everything, show_path=show_path)
+
     for key in sorted(fdict.keys()):
         print(colorize("--- " + key, 'bgwhite'))
         if remove is not None:
@@ -256,6 +266,7 @@ def xmsgs_configure(disable_color, ignore_list, types, skip_paths):
     global DISABLE_COLOR
     global IGNORE_LIST
     global USE_TYPES
+    global SKIP_PATHS
 
     if disable_color:
         DISABLE_COLOR = True
@@ -273,7 +284,7 @@ def print_counts(counts, diff=False):
             print("%s %s (%s, %s)" % (
                 colorize("%020s" % name, color) + ':',
                 colorize(str(c['after']), '', bold=True),
-                colorize("+" + str(c['add']), 'green', bold=True), 
+                colorize("+" + str(c['add']), 'green', bold=True),
                 colorize("-" + str(c['remove']), 'red', bold=True)))
     else:
         def helper(name, c, color=None):
@@ -290,4 +301,3 @@ def print_counts(counts, diff=False):
         helper('Warnings', counts['warning'], color='warning')
     if 'info' in USE_TYPES:
         helper('Infos', counts['info'], color='info')
-

@@ -14,6 +14,7 @@ Call with --help for usage info.
 
 from __future__ import print_function
 import argparse
+import sys
 
 from xmsgs import *
 
@@ -77,4 +78,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

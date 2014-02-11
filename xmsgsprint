@@ -14,6 +14,7 @@ Call with --help for usage info.
 
 from __future__ import print_function
 import argparse
+import sys
 
 from xmsgs import *
 
@@ -59,7 +60,7 @@ def main():
         everything=args.everything,
         full=(args.full or args.show_path),
         show_path=args.show_path,
-	)
+    )
 
     if args.by_file:
         print_by_file(msgs, **printargs)
@@ -69,4 +70,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
