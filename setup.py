@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='xmsgs-tools',
-      version='0.1',
+      version='0.2.0',
       description='Helper command line tools for parsing large Xilinx ISE FPGA build output logs',
       url='http://github.com/leaflabs/xmsgs-tools/',
       author='Bryan Newbold',
