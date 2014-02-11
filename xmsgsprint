@@ -6,7 +6,10 @@
     Author: bnewbold@leaflabs.com
     Date: Feb 2014
 
+Pretty printer with filtering for dealing with large Xilinx ISE build output
+logs.
 
+Call with --help for usage info.
 """
 
 from __future__ import print_function

@@ -5,6 +5,9 @@
     License: MIT License
     Author: bnewbold@leaflabs.com
     Date: Feb 2014
+
+Module with helper functions for dealing with Xilinx ISE .xmsgs output log
+files.
 """
 
 from __future__ import print_function

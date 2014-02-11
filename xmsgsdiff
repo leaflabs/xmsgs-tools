@@ -6,7 +6,10 @@
     Author: bnewbold@leaflabs.com
     Date: Feb 2014
 
+Diff utility with filtering for, eg, comparing the number of warnings and
+errors between successive bitfile builds.
 
+Call with --help for usage info.
 """
 
 from __future__ import print_function
