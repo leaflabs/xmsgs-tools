@@ -197,7 +197,7 @@ def parse_diff(before_files, after_files):
 
 
 
-def print_msgs(msgs, difftype=None, full=False):
+def print_msgs(msgs, difftype=None, full=False, everything=False, show_path=False):
     if difftype is 'add':
         lineprefix = colorize("+", 'bggreen')
     elif difftype is 'remove':
@@ -207,7 +207,13 @@ def print_msgs(msgs, difftype=None, full=False):
 
     for m in msgs:
         prefix = m['source'] + ":" + str(m['num']) + ": "
-        if full:
+        if show_path and m['path']:
+            prefix += m['path'] + ':' + str(m['linenum']) + "\n "
+        if everything:
+            body = '\n'
+            for k, v in m.iteritems():
+                body += "\t%s: %s\n" % (k, v)
+        elif full:
             body = m['text']
         else:
             body = strlim(m['text'], 77 - len(prefix))
@@ -216,7 +222,7 @@ def print_msgs(msgs, difftype=None, full=False):
               colorize(body, m['type']))
 
 
-def print_by_file(add, remove=None, full=False):
+def print_by_file(add, remove=None, full=False, everything=False, show_path=False):
     """
     For non-diff output, set 'remove' to None and pass message list as 'add'.
     """
@@ -236,13 +242,14 @@ def print_by_file(add, remove=None, full=False):
             if not fdict.has_key(m['path']): 
                 fdict[m['path']] = {'add': [], 'remove': []}
             fdict[m['path']]['remove'].append(m)
+    printargs = dict(full=full, everything=everything, show_path=show_path)
     for key in sorted(fdict.keys()):
         print(colorize("--- " + key, 'bgwhite'))
         if remove is not None:
-            print_msgs(fdict[key]['add'], 'add', full=full)
-            print_msgs(fdict[key]['remove'], 'remove', full=full)
+            print_msgs(fdict[key]['add'], 'add', **printargs)
+            print_msgs(fdict[key]['remove'], 'remove', **printargs)
         else:
-            print_msgs(fdict[key]['add'], None, full=full)
+            print_msgs(fdict[key]['add'], None, **printargs)
 
 
 def xmsgs_configure(disable_color, ignore_list, types, skip_paths):

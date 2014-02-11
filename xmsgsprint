@@ -28,6 +28,8 @@ def main():
         help="more verbose (debugging) output")
     parser.add_argument('-f', '--full', action="store_true",
         help="display full output")
+    parser.add_argument('-e', '--everything', action="store_true",
+        help="very verbose output, showing metadata for each message")
     parser.add_argument('-b', '--by-file', action="store_true",
         help="Display outputs by filename")
     parser.add_argument('-s', '--skip-paths', nargs="+",
@@ -60,10 +62,17 @@ def main():
         the_file = [args.file, ]
 
     (msgs, counts) = parse(the_file)
+
+    printargs = dict(
+        everything=args.everything,
+        full=(args.full or args.show_path),
+        show_path=args.show_path,
+	)
+
     if args.by_file:
-        print_by_file(msgs, full=args.full)
+        print_by_file(msgs, **printargs)
     else:
-        print_msgs(msgs, None, full=args.full)
+        print_msgs(msgs, None, **printargs)
     print_counts(counts)
 
 if __name__ == '__main__':
