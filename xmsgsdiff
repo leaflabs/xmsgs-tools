@@ -1,0 +1,183 @@
+#!/usr/bin/env python
+"""
+..
+    Copyright: LeafLabs, LLC, 2014
+    License: MIT License
+    Author: bnewbold@leaflabs.com
+    Date: Feb 2014
+
+NOTES:
+
+* 'fulltext' is not a unique identifier; many warning texts are repeated
+
+TODO:
+
+* handle "info" as well as "warning"
+* ignore by type/number
+* collapse redundant warnings (every bit on on the same port)
+* parse 'new' flag?
+* summarize
+* ignore by file/path
+"""
+
+from __future__ import print_function
+import argparse
+import logging as log
+import pprint
+import xml.etree.ElementTree as ET
+import re
+import os
+import sys
+
+pp = pprint.PrettyPrinter()
+
+DISABLE_COLOR = False
+
+
+def colorize(what, how, bold=False):
+    """
+    See also: https://pypi.python.org/pypi/colorama
+    """
+    if DISABLE_COLOR:
+        return what
+
+    RED = '\033[31m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[34m'
+    MAGENTA = '\033[35m'
+    CYAN = '\033[36m'
+    BGRED = '\033[41m'
+    BGGREEN = '\033[42m'
+    BGYELLOW = '\033[43m'
+    BGBLUE = '\033[44m'
+    BGWHITE = '\033[47m'
+    ENDC = '\033[0m'
+
+    if bold:
+        BOLD = '\033[1m'
+    else:
+        BOLD = ''
+
+    if how in ['red', 'error', 'fail']:
+        return RED + BOLD + what + ENDC
+    elif how in ['green', 'ok', 'fail']:
+        return GREEN + BOLD + what + ENDC
+    elif how in ['yellow', 'warning']:
+        return YELLOW + BOLD + what + ENDC
+    elif how in ['grey', 'gray', 'info']:
+        return DIM + BOLD + what + ENDC
+    elif how in ['bright']:
+        return BRIGHT + BOLD + what + ENDC
+    elif how in ['bgred']:
+        return BGRED + BOLD + what + ENDC
+    elif how in ['bggreen']:
+        return BGGREEN + BOLD + what + ENDC
+    elif how in ['bgwhite']:
+        return BGWHITE + BOLD + what + ENDC
+    elif how in ['bgblue']:
+        return BGBLUE + BOLD + what + ENDC
+    else:
+        return what
+
+
+def strlim(s, l):
+    if len(s) > l:
+        return s[:l-3] + "..."
+    else:
+        return s
+
+
+def msg2dict(msg):
+    raw = msg.text
+    for child in msg:
+        raw += child.text
+        raw += child.tail
+    raw = raw.strip()
+    fullpath = None
+    linenum = None
+    text = raw
+    r = re.compile('\"(\S+)\" Line (\d+): (.+)')
+    m = r.match(raw)
+    if m is not None:
+        fullpath = m.group(1)
+        linenum = int(m.group(2))
+        text = m.group(3)
+
+    return {'type': msg.attrib['type'],
+            'source': msg.attrib['file'],
+            'num': int(msg.attrib['num']),
+            'delta': msg.attrib['delta'],
+            'fulltext': raw,
+            'text': text,
+            'fullpath': fullpath,
+            'count': 1,
+            'linenum': linenum}
+
+
+def run(before, after):
+    counts = {'add': 0,
+              'remove': 0,
+              'duplicate': 0,
+              'after': 0}
+    before_dict = {}
+    before_tree = ET.parse(before)
+    for msg in before_tree.iter('msg'):
+        m = msg2dict(msg)
+        if m['fulltext'] in before_dict:
+            counts['duplicate'] = counts['duplicate'] + 1
+            m['count'] = m['count'] + 1
+        before_dict[m['fulltext']] = m
+    counts['before'] = len(before_dict.keys())
+
+    after_dict = {}
+    after_tree = ET.parse(after)
+    for msg in after_tree.iter('msg'):
+        m = msg2dict(msg)
+        if m['fulltext'] in after_dict:
+            counts['duplicate'] = counts['duplicate'] + 1
+            m['count'] = m['count'] + 1
+        after_dict[m['fulltext']] = m
+        if m['fulltext'] in before_dict.keys():
+            before_dict.pop(m['fulltext'])
+        else:
+            print(colorize("+", 'bggreen') + strlim(m['source'] + ":" + m['text'], 75))
+            counts['add'] = counts['add'] + 1
+    counts['after'] = len(after_dict.keys())
+    counts['remove'] = len(before_dict.keys())
+
+    for m in before_dict.values():
+        print(colorize("-", 'bgred') + strlim(m['source'] + ":" + m['text'], 75))
+        pass
+
+    pp.pprint(counts)
+
+
+# ========== Script/Args =========== #
+def main():
+    global DISABLE_COLOR
+    parser = argparse.ArgumentParser(
+        description="BLAH!",
+        usage="%(prog)s [options]")
+    parser.add_argument('-v', '--verbose', action="count",
+        help="more verbose (debugging) output")
+    parser.add_argument('before_file', type=argparse.FileType(),
+        help="")
+    parser.add_argument('after_file', type=argparse.FileType(),
+        help="")
+
+    args = parser.parse_args()
+
+    if args.verbose > 0:
+        log.basicConfig(format="%(levelname)s: %(message)s", level=log.DEBUG)
+    else:
+        log.basicConfig(format="%(levelname)s: %(message)s")
+
+    if not os.isatty(sys.stdout.fileno()):
+        DISABLE_COLOR = True
+
+    run(args.before_file, args.after_file)
+
+if __name__ == '__main__':
+    main()
+
