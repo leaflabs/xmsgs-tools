@@ -31,9 +31,7 @@ def main():
         help="Skip paths (can be globs)")
     parser.add_argument('--show-path', action="store_true",
         help="show file paths (when possible); implies --full")
-    parser.add_argument('before_file', type=str,
-        help="")
-    parser.add_argument('after_file', type=str,
+    parser.add_argument('file', type=str,
         help="")
     parser.add_argument('-i', '--ignore', nargs="+", type=int,
         help="list of warnings to ignore (integers)")
@@ -53,23 +51,17 @@ def main():
         types=args.types,
         skip_paths=args.skip_paths)
 
-    if os.path.isdir(args.before_file):
-        before_files = glob.glob(args.before_file + "/*xmsgs")
+    if os.path.isdir(args.file):
+        the_file = glob.glob(args.file + "/*xmsgs")
     else:
-        before_files = [args.before_file, ]
+        the_file = [args.file, ]
 
-    if os.path.isdir(args.after_file):
-        after_files = glob.glob(args.after_file + "/*xmsgs")
-    else:
-        after_files = [args.after_file, ]
-
-    (add, remove, counts) = parse_diff(before_files, after_files)
+    (msgs, counts) = parse(the_file)
     if args.by_file:
-        print_by_file(add, remove, full=args.full)
+        print_by_file(msgs, full=args.full)
     else:
-        print_msgs(remove, 'remove', full=args.full)
-        print_msgs(add, 'add', full=args.full)
-    print_counts(counts, diff=True)
+        print_msgs(msgs, None, full=args.full)
+    print_counts(counts)
 
 if __name__ == '__main__':
     main()
