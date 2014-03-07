@@ -85,6 +85,8 @@ def strlim(s, l):
 
 def msg2dict(msg):
     raw = msg.text
+    if not raw:
+        raw = ''
     for child in msg:
         raw += child.text
         raw += child.tail
