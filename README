@@ -8,6 +8,15 @@
 
 Little python helpers for parsing through Xilinx build outputs.
 
+
+### WORK IN PROGRESS
+
+There are some blatant problems:
+
+- unhandled exceptions on some message types
+- duplicated messages reported
+- etc
+
 ### Install
 
 This is pure python, no dependancies. Only tested on linux (debian wheezy).
