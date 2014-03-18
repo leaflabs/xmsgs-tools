@@ -116,12 +116,16 @@ def msg2dict(msg):
     if num in IGNORE_LIST or not type in USE_TYPES:
         return None
 
+    # 'key' is basically fulltext without the line number
+    key = "%s|%s" % (path, text)
+
     return {'type': type,
             'source': msg.attrib['file'],
             'num': num,
             'delta': msg.attrib['delta'],
             'fulltext': raw,
             'text': text,
+            'key': key,
             'fullpath': fullpath,
             'path': path,
             'count': 1,
@@ -143,10 +147,10 @@ def parse(files):
             if not m:
                 continue
             t = m['type']
-            if m['fulltext'] in the_dict:
+            if m['key'] in the_dict:
                 counts['duplicate'] += 1
                 m['count'] += 1
-            the_dict[m['fulltext']] = m
+            the_dict[m['key']] = m
             counts[t] += 1
 
     return (the_dict.values(), counts)
@@ -171,10 +175,10 @@ def parse_diff(before_files, after_files):
             if not m:
                 continue
             t = m['type']
-            if m['fulltext'] in before_dict:
+            if m['key'] in before_dict:
                 counts['duplicate'] += 1
                 m['count'] += 1
-            before_dict[m['fulltext']] = m
+            before_dict[m['key']] = m
             counts[t]['before'] += 1
 
     add_list = []
@@ -186,12 +190,12 @@ def parse_diff(before_files, after_files):
             if not m:
                 continue
             t = m['type']
-            if m['fulltext'] in after_dict:
+            if m['key'] in after_dict:
                 counts['duplicate'] += 1
                 m['count'] += 1
-            after_dict[m['fulltext']] = m
-            if m['fulltext'] in before_dict.keys():
-                before_dict.pop(m['fulltext'])
+            after_dict[m['key']] = m
+            if m['key'] in before_dict.keys():
+                before_dict.pop(m['key'])
             else:
                 add_list.append(m)
                 counts[t]['add'] += 1
