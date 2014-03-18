@@ -119,10 +119,11 @@ def msg2dict(msg):
     # 'key' is basically fulltext without the line number
     key = "%s|%s" % (path, text)
 
+    # remember, "dict.get()" defaults to None
     return {'type': type,
-            'source': msg.attrib['file'],
+            'source': msg.get('file'),
             'num': num,
-            'delta': msg.attrib['delta'],
+            'delta': msg.get('delta'),
             'fulltext': raw,
             'text': text,
             'key': key,
