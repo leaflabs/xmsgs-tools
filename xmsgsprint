@@ -50,7 +50,15 @@ def main():
         skip_paths=args.skip_paths)
 
     if os.path.isdir(args.file):
-        the_file = glob.glob(args.file + "/*xmsgs")
+        # if we got an empty directory, poke around for subdirectories
+        the_file = glob.glob(args.file + "/*.xmsgs")
+        if len(the_file) == 0:
+            the_file = glob.glob(args.file + "/_xmsgs/*.xmsgs")
+        if len(the_file) == 0:
+            the_file = glob.glob(args.file + "/logs/*.xmsgs")
+        if len(the_file) == 0:
+            print("No files found.")
+            return
     else:
         the_file = [args.file, ]
 

@@ -52,12 +52,27 @@ def main():
         skip_paths=args.skip_paths)
 
     if os.path.isdir(args.before_file):
-        before_files = glob.glob(args.before_file + "/*xmsgs")
+        # if we got an empty directory, poke around for subdirectories
+        before_files = glob.glob(args.before_file + "/*.xmsgs")
+        if len(before_files) == 0:
+            before_files = glob.glob(args.before_file + "/_xmsgs/*.xmsgs")
+        if len(before_files) == 0:
+            before_files = glob.glob(args.before_file + "/logs/*.xmsgs")
+        if len(before_files) == 0:
+            print("No 'before' files found.")
+            return
     else:
         before_files = [args.before_file, ]
 
     if os.path.isdir(args.after_file):
-        after_files = glob.glob(args.after_file + "/*xmsgs")
+        after_files = glob.glob(args.after_file + "/*.xmsgs")
+        if len(after_files) == 0:
+            after_files = glob.glob(args.after_file + "/_xmsgs/*.xmsgs")
+        if len(after_files) == 0:
+            after_files = glob.glob(args.after_file + "/logs/*.xmsgs")
+        if len(after_files) == 0:
+            print("No 'after' files found.")
+            return
     else:
         after_files = [args.after_file, ]
 
